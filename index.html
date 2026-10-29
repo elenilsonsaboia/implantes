@@ -730,7 +730,7 @@ function render() {
   if (usuario && !ehAdmin() && !ABAS_RECEPCAO.includes(UI.view)) UI.view = ABAS_RECEPCAO[0];
   if (syncBaixasPendentes()) persist();
   document.querySelectorAll('nav.side a').forEach(a => a.classList.toggle('active', a.dataset.view === UI.view));
-  for (const k of Object.keys(SCHEMAS)) $('#n-' + k).textContent = db[k].length;
+  for (const k of Object.keys(SCHEMAS)) { const n = $('#n-' + k); if (n) n.textContent = db[k].length; }
   updateSyncInfo();
   if (UI.view === 'painel') renderPainel();
   else if (UI.view === 'config') renderConfig();
