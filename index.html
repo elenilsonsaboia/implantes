@@ -238,7 +238,7 @@ let snap = new Map();      // 'colecao|id' -> texto estável do que está no ban
 let usuario = null, carregado = false, online = false, enviando = false, deNovo = false, envioTimer = null, ultimoEnvio = null;
 const filaCarregar = [];
 // papéis: admin vê tudo; recepção só Tomografias e Pacientes (o banco também barra o resto)
-const ABAS_RECEPCAO = ['tomografias', 'pacientes'];
+const ABAS_RECEPCAO = ['tomografias', 'pacientes', 'financeiro'];
 const ehAdmin = () => usuario?.papel === 'admin';
 const podeGravar = c => ehAdmin() || ABAS_RECEPCAO.includes(c);
 // scripts de ajuste de dados (*.js com MARCA) usam aoCarregar(fn): roda depois que os dados do banco chegaram
@@ -875,7 +875,7 @@ function mtBase(list, i, cir) { const ant = list[i - 1]; return i === 0 ? (cir |
 // data-auto guarda a data calculada (base + meses); se a data prevista for alterada à mão, deixa de acompanhar
 function mtRowHtml(m = {}, base = '') {
   return `<tr data-auto="${esc(addMonths(base, m.meses))}"><td><input type="number" step="1" inputmode="numeric" data-mt="meses" value="${esc(m.meses ?? '')}"></td><td><input type="date" data-mt="data" value="${esc(m.data || '')}"></td>
-    <td><input type="date" data-mt="realizada" value="${esc(m.realizada || '')}"></td><td><input type="text" data-mt="obs" value="${esc(m.obs || '')}"></td><td style="white-space:nowrap">${ehAdmin() ? '<button type="button" class="btn sm ghost" data-mtfin title="Lançar a cobrança desta manutenção no Financeiro">$</button>' : ''}<button type="button" class="btn sm ghost" data-mtdel title="Remover manutenção">✕</button></td></tr>`;
+    <td><input type="date" data-mt="realizada" value="${esc(m.realizada || '')}"></td><td><input type="text" data-mt="obs" value="${esc(m.obs || '')}"></td><td style="white-space:nowrap">${podeGravar('financeiro') ? '<button type="button" class="btn sm ghost" data-mtfin title="Lançar a cobrança desta manutenção no Financeiro">$</button>' : ''}<button type="button" class="btn sm ghost" data-mtdel title="Remover manutenção">✕</button></td></tr>`;
 }
 function readForm(S) {
   const o = {};
@@ -923,7 +923,7 @@ function openForm(view, id, preset) {
   if (!rec && view === 'estoque') base.codigo = nextCodigo(base.categoria);
   if (view === 'pacientes' && !base.dataReabertura) base.dataReabertura = addMonths(base.dataCirurgia, base.meses);
   const ov = document.createElement('div'); ov.className = 'overlay';
-  const extraBtns = rec && view === 'pacientes' ? `<button class="btn" id="mkTomo">+ Tomografia</button>${ehAdmin() ? '<button class="btn" id="mkFin">+ Financeiro</button>' : ''}` : '';
+  const extraBtns = rec && view === 'pacientes' ? `<button class="btn" id="mkTomo">+ Tomografia</button>${podeGravar('financeiro') ? '<button class="btn" id="mkFin">+ Financeiro</button>' : ''}` : '';
   ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
     <header><h2>${rec ? 'Editar' : 'Novo'} ${S.singular}</h2><button class="btn ghost" data-close aria-label="Fechar">✕</button></header>
     <div class="body">${datalists()}<div class="form">${S.fields.filter(fd => !fd.admin || ehAdmin()).map(fd => fieldHtml(fd, base[fd.k], base)).join('')}${S.preview ? '<div class="calc" id="calcPrev"></div>' : ''}</div>${rec ? linkedHtml(view, rec) : ''}</div>
