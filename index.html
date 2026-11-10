@@ -241,6 +241,8 @@ const filaCarregar = [];
 // papéis: admin vê tudo; recepção só Tomografias e Pacientes (o banco também barra o resto)
 const ABAS_RECEPCAO = ['tomografias', 'pacientes', 'financeiro'];
 const ehAdmin = () => usuario?.papel === 'admin';
+// abas que a pessoa vê: as do papel + as liberadas só para ela (membros.abas_extras, ex.: relatorio para o Leandro)
+const abasVisiveis = () => [...ABAS_RECEPCAO, ...(usuario?.abasExtras || [])];
 const podeGravar = c => ehAdmin() || ABAS_RECEPCAO.includes(c);
 // scripts de ajuste de dados (*.js com MARCA) usam aoCarregar(fn): roda depois que os dados do banco chegaram
 function aoCarregar(fn) { if (carregado) fn(); else filaCarregar.push(fn); }
@@ -370,9 +372,9 @@ async function iniciar() {
   $('#main').innerHTML = '<p style="padding:30px;color:var(--ink-3)">Carregando dados…</p>';
   try {
     const n = await carregarTudo();
-    const { data: m } = await sb.from('membros').select('nome,papel').eq('user_id', usuario.id).maybeSingle();
-    if (m) usuario.papel = m.papel;
-    if (m && !ehAdmin()) document.querySelectorAll('nav.side a[data-view]').forEach(a => { if (!ABAS_RECEPCAO.includes(a.dataset.view)) a.remove(); });
+    const { data: m } = await sb.from('membros').select('nome,papel,abas_extras').eq('user_id', usuario.id).maybeSingle();
+    if (m) { usuario.papel = m.papel; usuario.abasExtras = m.abas_extras || []; }
+    if (m && !ehAdmin()) document.querySelectorAll('nav.side a[data-view]').forEach(a => { if (!abasVisiveis().includes(a.dataset.view)) a.remove(); });
     if (!m) { $('#main').innerHTML = `<p style="padding:30px">O usuário <b>${esc(usuario.email)}</b> ainda não foi liberado para usar o sistema. Peça a liberação ao Dr. Elenilson.</p><p style="padding:0 30px"><button class="btn" onclick="sair()">Sair</button></p>`; return; }
     usuario.nome = m.nome;
     assinarMudancas();
@@ -735,7 +737,7 @@ function go(view, preset) {
 document.querySelectorAll('nav.side a').forEach(a => a.onclick = () => go(a.dataset.view));
 
 function render() {
-  if (usuario && !ehAdmin() && !ABAS_RECEPCAO.includes(UI.view)) UI.view = ABAS_RECEPCAO[0];
+  if (usuario && !ehAdmin() && !abasVisiveis().includes(UI.view)) UI.view = ABAS_RECEPCAO[0];
   if (syncBaixasPendentes()) persist();
   document.querySelectorAll('nav.side a').forEach(a => a.classList.toggle('active', a.dataset.view === UI.view));
   for (const k of Object.keys(SCHEMAS)) { const n = $('#n-' + k); if (n) n.textContent = db[k].length; }
@@ -1214,7 +1216,8 @@ function relDados() {
   const mat = new Map();
   for (const m of movs) { const o = mat.get(m.codigo) || mat.set(m.codigo, { e: 0, s: 0, ve: 0 }).get(m.codigo); if (m.tipo === 'ENTRADA') { o.e += num(m.qtd); o.ve += num(m.qtd) * num(m.valorUnit); } else if (m.tipo === 'SAIDA') o.s += num(m.qtd); }
   const matRows = [...mat.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([cod, o]) => ({ v: [cod, db.estoque.find(e => e.codigo === cod)?.item || 'CÓDIGO INVÁLIDO', o.e, o.s, o.ve] }));
-  S.push({ id: 'mat', t: 'Materiais movimentados', cols: [['Código', ''], ['Item', 'b'], ['Entradas', N], ['Saídas', N], ['Valor das entradas', M]],
+  // estoque e movimentações são só do admin
+  if (ehAdmin()) S.push({ id: 'mat', t: 'Materiais movimentados', cols: [['Código', ''], ['Item', 'b'], ['Entradas', N], ['Saídas', N], ['Valor das entradas', M]],
     rows: matRows, foot: ['Total', '', sum(matRows, x => x.v[2]), sum(matRows, x => x.v[3]), sum(matRows, x => x.v[4])] });
 
   const txtPer = tudo ? 'Todo o período' : `${de ? fmtD(de) : 'início'} a ${ate ? fmtD(ate) : 'hoje'}`;
@@ -1261,7 +1264,7 @@ function renderRelatorio() {
     </div>
     ${sec(by('clinica'))}${sec(by('mes'))}${sec(by('plan'))}${sec(by('deb'))}${sec(by('reab'))}${sec(by('manut'))}${sec(by('cir'))}${sec(by('ent'))}
     <div class="grid2" style="margin-bottom:0">${sec(by('tomo'))}${sec(by('sefaz'))}</div>
-    ${sec(by('mat'))}`;
+    ${by('mat') ? sec(by('mat')) : ''}`;
   const upd = () => { saveUI(); renderRelatorio(); };
   $('#relPreset').onchange = e => { r.preset = e.target.value; if (r.preset === 'custom') [r.de, r.ate] = [R.de, R.ate]; upd(); };
   $('#relDe').onchange = e => { r.preset = 'custom'; r.de = e.target.value; r.ate = $('#relAte').value; upd(); };
