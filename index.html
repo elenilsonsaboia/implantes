@@ -447,9 +447,12 @@ function valesResumo() {
   const t = rows.reduce((a, x) => ({ parte: a.parte + x.parte, manut: a.manut + x.manut, vales: a.vales + x.vales, comissoes: a.comissoes + x.comissoes, saldo: a.saldo + x.saldo }), { parte: 0, manut: 0, vales: 0, comissoes: 0, saldo: 0 });
   return { rows, t };
 }
+// status do paciente: concluído (nome antigo e novo) e em andamento (da cirurgia marcada até o laboratório)
+const pacConcluido = p => p.status === 'CONCLUIDO' || p.status === 'TRABALHO CONCLUIDO';
+const pacAndamento = p => ['EM ANDAMENTO', 'CIRURGIA MARCADA', 'REABERTURA', 'LABORATORIO'].includes(p.status);
 function pacCalc(p) {
   const reab = p.dataReabertura || addMonths(p.dataCirurgia, p.meses);
-  const vencida = !!reab && reab < hoje() && !p.entrega && p.status !== 'CONCLUIDO';
+  const vencida = !!reab && reab < hoje() && !p.entrega && !pacConcluido(p);
   // manutenções: a próxima é a mais antiga ainda sem data de realização
   const mts = p.manutencoes || [], pend = mts.filter(m => m.data && !m.realizada).map(m => m.data).sort();
   const proxManut = pend[0] || '';
@@ -502,7 +505,7 @@ function nextCodigo(cat) {
 }
 const statusBadge = s => {
   if (!s) return '';
-  const cls = { 'CONCLUIDO': 'good', 'ENTREGUE': 'good', 'OK': 'good', 'COMPLETO': 'good', 'EM ANDAMENTO': 'info', 'CIRURGIA AGENDADA': 'info', 'ENTREGA AGENDADA': 'info', 'EXAME REALIZADO': 'info', 'ENTRADA': 'good',
+  const cls = { 'CONCLUIDO': 'good', 'TRABALHO CONCLUIDO': 'good', 'PEDIDO DE TOMO E ESCANEAMENTO': 'warn', 'ESCANEAMENTO COMPLETO NO CFAZ': 'info', 'FECHADO': 'warn', 'EM PLANEJAMENTO': 'warn', 'CIRURGIA MARCADA': 'info', 'REABERTURA': 'info', 'LABORATORIO': 'info', 'ENTREGUE': 'good', 'OK': 'good', 'COMPLETO': 'good', 'EM ANDAMENTO': 'info', 'CIRURGIA AGENDADA': 'info', 'ENTREGA AGENDADA': 'info', 'EXAME REALIZADO': 'info', 'ENTRADA': 'good',
     'PEDIDO DE TOMO': 'warn', 'PEDIDO EMITIDO': 'warn', 'REPOR': 'warn', 'AGUARDANDO': 'warn', 'OBSERVAR': 'warn', 'CONTRATADO A INICIAR': 'warn', 'VENCE EM 60 DIAS': 'warn', 'VERIFICAR SEFAZ': 'warn', 'SAIDA': 'warn',
     'PREVISTA': 'info', 'REALIZADA': 'good', 'VENCIDA': 'crit', 'SEM ESTOQUE': 'crit', 'NAO CONTRATADO - ATENCAO': 'crit', 'INCOMPLETO': 'crit', 'NAO CONSTA': 'crit', 'VENCIDO': 'crit', 'COBRAR PACIENTE': 'crit', 'CANCELADO': '' }[s] ?? '';
   return `<span class="badge ${cls}">${esc(s)}</span>`;
@@ -1038,7 +1041,7 @@ function renderPainel() {
   const cnt = (arr, fn) => arr.filter(fn).length;
   const h = hoje(), em30 = addMonths(h, 1);
   const reabV = cnt(P, x => x.c.reabVencida);
-  const proxReab = P.filter(x => x.c.reabertura && x.c.reabertura >= h && x.c.reabertura <= em30 && !x.p.entrega && x.p.status !== 'CONCLUIDO').sort((a, b) => a.c.reabertura.localeCompare(b.c.reabertura));
+  const proxReab = P.filter(x => x.c.reabertura && x.c.reabertura >= h && x.c.reabertura <= em30 && !x.p.entrega && !pacConcluido(x.p)).sort((a, b) => a.c.reabertura.localeCompare(b.c.reabertura));
   const proxManut = P.filter(x => x.c.proxManut && x.c.proxManut >= h && x.c.proxManut <= em30).sort((a, b) => a.c.proxManut.localeCompare(b.c.proxManut));
   const alertas = [
     ['crit', reabV, 'Reaberturas vencidas', 'sem entrega registrada', () => go('pacientes', { flags: { reabVencida: true } })],
@@ -1055,7 +1058,7 @@ function renderPainel() {
   const semStatus = cnt(P, x => !x.p.status); if (semStatus) porStatus.push(['(sem status)', semStatus]);
   const tomoStatus = L('statusTomo').map(s => [s, cnt(T, x => x.t.status === s)]);
   const sefaz = L('statusSefaz').map(s => [s, cnt(T, x => x.t.sefaz === s)]);
-  const clinicas = L('clinicas').map(c => [c, cnt(P, x => x.p.clinica === c), cnt(P, x => x.p.clinica === c && x.p.status === 'EM ANDAMENTO'), cnt(T, x => x.t.clinica === c && x.t.status !== 'ENTREGUE' && x.t.status !== 'CANCELADO')]);
+  const clinicas = L('clinicas').map(c => [c, cnt(P, x => x.p.clinica === c), cnt(P, x => x.p.clinica === c && pacAndamento(x.p)), cnt(T, x => x.t.clinica === c && x.t.status !== 'ENTREGUE' && x.t.status !== 'CANCELADO')]);
   const ano = h.slice(0, 4);
   const VR = valesResumo();
   const implAno = sum(P.filter(x => (x.p.dataCirurgia || '').startsWith(ano)), x => x.p.qtd);
@@ -1064,7 +1067,7 @@ function renderPainel() {
   const FM = F.filter(x => x.f.planejamento === 'MANUTENCAO');
   $('#main').innerHTML = headHtml('Painel de controle', 'Implantes e tomografias — visão geral', `<button class="btn primary" onclick="openForm('pacientes')">+ Paciente</button><button class="btn" onclick="openForm('tomografias')">+ Tomografia</button><button class="btn" onclick="openForm('movimentacoes')">+ Movimentação</button>`) + `
     <div class="kpis">
-      <div class="card kpi"><div class="l">Pacientes</div><div class="v">${db.pacientes.length}</div><div class="s">${cnt(P, x => x.p.status === 'EM ANDAMENTO')} em andamento</div></div>
+      <div class="card kpi"><div class="l">Pacientes</div><div class="v">${db.pacientes.length}</div><div class="s">${cnt(P, x => pacAndamento(x.p))} em andamento</div></div>
       <div class="card kpi"><div class="l">Implantes em ${ano}</div><div class="v">${fmtN(implAno)}</div><div class="s">pela data de cirurgia</div></div>
       <div class="card kpi" style="cursor:pointer" onclick="go('pacientes', { flags: { manutVencida: true } })"><div class="l">Manutenções a fazer</div><div class="v">${mtPend}</div><div class="s ${cnt(P, x => x.c.manutVencida) ? 'neg' : ''}">${cnt(P, x => x.c.manutVencida)} paciente(s) com vencida · ${mtAno} feita(s) em ${ano}</div></div>
       <div class="card kpi" style="cursor:pointer" onclick="go('financeiro', { f: { planejamento: 'MANUTENCAO' } })"><div class="l">Cobranças de manutenção</div><div class="v">${fmtR(sum(FM, x => x.f.valor))}</div><div class="s">${FM.length} lançamento(s) · ${fmtR(sum(FM, x => x.c.pago))} pago · débito ${fmtR(sum(FM, x => Math.max(0, x.c.debito)))}</div></div>
@@ -1120,7 +1123,7 @@ function relDados() {
   const cir = P.filter(p => inP(p.dataCirurgia)), ent = P.filter(p => inP(p.entrega));
   // reaberturas previstas no período (data da cirurgia + meses) e a situação de cada uma
   const reab = P.map(p => ({ p, c: pacCalc(p) })).filter(x => inP(x.c.reabertura))
-    .map(x => ({ ...x, sit: (x.p.entrega || x.p.status === 'CONCLUIDO') ? 'ENTREGUE' : x.c.reabVencida ? 'VENCIDA' : 'PREVISTA' }));
+    .map(x => ({ ...x, sit: (x.p.entrega || pacConcluido(x.p)) ? 'ENTREGUE' : x.c.reabVencida ? 'VENCIDA' : 'PREVISTA' }));
   // manutenções: entram pela data em que foram feitas; as pendentes, pela data prevista
   const manut = P.flatMap(p => (p.manutencoes || []).map(m => ({ p, m, ref: m.realizada || m.data }))).filter(x => inP(x.ref))
     .map(x => ({ ...x, sit: x.m.realizada ? 'REALIZADA' : x.m.data < hoje() ? 'VENCIDA' : 'PREVISTA' }));
