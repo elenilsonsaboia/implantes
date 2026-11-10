@@ -220,6 +220,7 @@ function normDb() {
   db.importacoes = db.importacoes || [];
   if (!db.listas.formaPagamento) db.listas.formaPagamento = ['PIX', 'DINHEIRO', 'CARTAO', 'BOLETO'];
   if (!db.listas.tipoRecebimento) db.listas.tipoRecebimento = ['VALE', 'COMISSAO'];
+  if (!db.listas.tipoTrabalho) db.listas.tipoTrabalho = ['IMPLANTE UNITARIO', 'FIXA SOB IMPLANTE', 'PROTOCOLO SUPERIOR', 'PROTOCOLO INFERIOR', 'COROA OU BLOCO'];
   for (const v of db.vales) if (!v.tipo) v.tipo = 'VALE';
 }
 normDb();
@@ -515,6 +516,7 @@ const SCHEMAS = {
     fields: [
       { k: 'nome', l: 'Paciente', t: 'text', req: 1, full: 0, dl: 'nomes' }, { k: 'clinica', l: 'Clínica', t: 'select', list: 'clinicas' },
       { k: 'telefone', l: 'Telefone', t: 'text' }, { k: 'status', l: 'Status', t: 'select', list: 'statusPaciente' },
+      { k: 'tipoTrabalho', l: 'Tipo de trabalho', t: 'select', list: 'tipoTrabalho' }, { k: 'regiao', l: 'Região / dentes', t: 'text' },
       { h: 'Cirurgia' },
       { k: 'guia', l: 'Guia cirúrgico', t: 'select', list: 'guia' }, { k: 'dataCirurgia', l: 'Data da cirurgia', t: 'date' },
       { k: 'meses', l: 'Meses p/ reabertura', t: 'number' }, { k: 'dataReabertura', l: 'Data da reabertura', t: 'date' },
@@ -531,6 +533,7 @@ const SCHEMAS = {
     preview: p => { const c = pacCalc(p); const mv = db.movimentacoes.find(m => m.autoPaciente && m.autoPaciente === p.id); return `${mv ? `<div>Baixa no estoque<b>${mv.qtd}x ${esc(mv.codigo)} em ${fmtD(mv.data)}</b></div>` : p.codigoImplante ? `<div>Baixa no estoque<b>${p.dataCirurgia && p.dataCirurgia <= hoje() ? 'ao salvar' : 'no dia da cirurgia'}</b></div>` : ''}<div>Reabertura<b>${c.reabertura ? fmtD(c.reabertura) : '—'}</b></div>${c.reabVencida ? '<div><span class="badge crit">Reabertura vencida sem entrega</span></div>' : ''}<div>Próxima manutenção<b>${c.proxManut ? fmtD(c.proxManut) : '—'}</b></div>${c.manutVencida ? '<div><span class="badge crit">Manutenção vencida</span></div>' : ''}`; },
     cols: [
       { k: 'nome', l: 'Paciente', r: (p) => `<b>${esc(p.nome)}</b>${p.telefone ? `<div class="muted">${esc(p.telefone)}</div>` : ''}` },
+      { k: 'tipoTrabalho', l: 'Trabalho', wrap: 1, r: p => p.tipoTrabalho || p.regiao ? `${esc(p.tipoTrabalho || '')}${p.regiao ? `<div class="muted">${esc(p.regiao)}</div>` : ''}` : '' },
       { k: 'clinica', l: 'Clínica', r: p => clChip(p.clinica) },
       { k: 'status', l: 'Status', r: p => statusBadge(p.status) },
       { k: 'dataCirurgia', l: 'Cirurgia', t: 'date' },
@@ -541,7 +544,7 @@ const SCHEMAS = {
       { k: 'entrega', l: 'Entrega', t: 'date' },
       { k: 'proxManut', l: 'Manutenção', calc: 1, t: 'date', r: (p, c) => c.manutTotal ? `${c.proxManut ? (c.manutVencida ? `<span class="badge crit">${fmtD(c.proxManut)}</span>` : fmtD(c.proxManut)) : ''}<div class="muted">${c.manutFeitas}/${c.manutTotal} feita(s)</div>` : '' },
     ],
-    filtros: [{ k: 'clinica', l: 'Todas as clínicas', list: 'clinicas' }, { k: 'status', l: 'Todos os status', list: 'statusPaciente' }],
+    filtros: [{ k: 'clinica', l: 'Todas as clínicas', list: 'clinicas' }, { k: 'status', l: 'Todos os status', list: 'statusPaciente' }, { k: 'tipoTrabalho', l: 'Todos os trabalhos', list: 'tipoTrabalho' }],
     flags: [{ k: 'reabVencida', l: 'Só reaberturas vencidas', fn: (p, c) => c.reabVencida }, { k: 'manutVencida', l: 'Só manutenções vencidas', fn: (p, c) => c.manutVencida }],
     sortDefault: { k: 'dataCirurgia', dir: -1 },
   },
@@ -581,6 +584,7 @@ const SCHEMAS = {
     fields: [
       { k: 'paciente', l: 'Paciente', t: 'text', req: 1, dl: 'nomes' }, { k: 'clinica', l: 'Clínica', t: 'select', list: 'clinicas' },
       { k: 'planejamento', l: 'Planejamento', t: 'select', list: 'planejamento' }, { k: 'data', l: 'Data do procedimento', t: 'date' },
+      { k: 'tipoTrabalho', l: 'Trabalho (do paciente)', t: 'select', list: 'tipoTrabalho' }, { k: 'regiao', l: 'Região / dentes', t: 'text' },
       { h: 'Recebimento' },
       { k: 'valor', l: 'Valor contratado (R$)', t: 'money' }, { k: 'entrada', l: 'Entrada (R$)', t: 'money' }, { k: 'dataEntrada', l: 'Data da entrada', t: 'date' }, { k: 'desconto', l: 'Desconto (R$)', t: 'money' },
       { k: 'formaPagamento', l: 'Forma de pagamento', t: 'select', list: 'formaPagamento' }, { k: 'desc10Debito', l: 'Dar 10% de desconto no débito?', t: 'select', list: 'simNao', def: 'NÃO' },
@@ -600,6 +604,7 @@ const SCHEMAS = {
       { k: 'paciente', l: 'Paciente', r: f => `<b>${esc(f.paciente)}</b>` },
       { k: 'clinica', l: 'Clínica', r: f => clChip(f.clinica) },
       { k: 'planejamento', l: 'Planejamento' },
+      { k: 'tipoTrabalho', l: 'Trabalho', wrap: 1, r: f => f.tipoTrabalho || f.regiao ? `${esc(f.tipoTrabalho || '')}${f.regiao ? `<div class="muted">${esc(f.regiao)}</div>` : ''}` : '' },
       { k: 'data', l: 'Data', t: 'date' },
       { k: 'valor', l: 'Contratado', t: 'money', sum: 1 },
       { k: 'pago', l: 'Pago', calc: 1, t: 'money', sum: 1 },
@@ -616,7 +621,7 @@ const SCHEMAS = {
       { k: 'parteClinica', l: 'Clínica 50%', calc: 1, t: 'money', sum: 1 },
       { k: 'parteMinha', l: 'Minha parte 50%', calc: 1, t: 'money', sum: 1 },
     ],
-    filtros: [{ k: 'clinica', l: 'Todas as clínicas', list: 'clinicas' }, { k: 'planejamento', l: 'Todo planejamento', list: 'planejamento' }, { k: 'formaPagamento', l: 'Toda forma de pagamento', list: 'formaPagamento' }],
+    filtros: [{ k: 'clinica', l: 'Todas as clínicas', list: 'clinicas' }, { k: 'planejamento', l: 'Todo planejamento', list: 'planejamento' }, { k: 'tipoTrabalho', l: 'Todos os trabalhos', list: 'tipoTrabalho' }, { k: 'formaPagamento', l: 'Toda forma de pagamento', list: 'formaPagamento' }],
     flags: [{ k: 'deb', l: 'Só com débito em aberto', fn: (f, c) => c.debito > 0 }],
     sortDefault: { k: 'data', dir: -1 },
   },
@@ -891,15 +896,17 @@ function readForm(S) {
 function linkedHtml(view, rec) {
   const S = SCHEMAS[view]; const nome = norm(rec[S.nomeCampo]); if (!nome || view === 'estoque' || view === 'movimentacoes') return '';
   const blocks = [];
-  if (view !== 'pacientes') { const l = db.pacientes.filter(p => norm(p.nome) === nome); if (l.length) blocks.push(['Pacientes', 'pacientes', l.map(p => [p.id, `${p.status || 'sem status'} · cirurgia ${fmtD(p.dataCirurgia) || '—'} · ${p.tipoImplante || ''}`])]); }
-  else { const l = db.pacientes.filter(p => norm(p.nome) === nome && p.id !== rec.id); if (l.length) blocks.push(['Outros registros deste paciente', 'pacientes', l.map(p => [p.id, `${p.status || 'sem status'} · cirurgia ${fmtD(p.dataCirurgia) || '—'} · ${p.situacao || p.tipoImplante || ''}`])]); }
+  if (view !== 'pacientes') { const l = db.pacientes.filter(p => norm(p.nome) === nome); if (l.length) blocks.push(['Trabalhos deste paciente', 'pacientes', l.map(p => [p.id, `${p.tipoTrabalho ? p.tipoTrabalho + (p.regiao ? ' (' + p.regiao + ')' : '') + ' · ' : ''}${p.status || 'sem status'} · cirurgia ${fmtD(p.dataCirurgia) || '—'} · ${p.tipoImplante || ''}`])]); }
+  else { const l = db.pacientes.filter(p => norm(p.nome) === nome && p.id !== rec.id); if (l.length) blocks.push(['Outros trabalhos deste paciente', 'pacientes', l.map(p => [p.id, `${p.tipoTrabalho ? p.tipoTrabalho + (p.regiao ? ' (' + p.regiao + ')' : '') + ' · ' : ''}${p.status || 'sem status'} · cirurgia ${fmtD(p.dataCirurgia) || '—'} · ${p.situacao || p.tipoImplante || ''}`])]); }
   if (view !== 'tomografias') { const l = db.tomografias.filter(t => norm(t.paciente) === nome); if (l.length) blocks.push(['Tomografias', 'tomografias', l.map(t => [t.id, `${t.tipoExame || ''} · ${t.status || 'sem status'} · SEFAZ ${t.sefaz || '—'}${t.arquivo ? ' · ' + t.arquivo : ''}`])]); }
-  if (view !== 'financeiro') { const l = db.financeiro.filter(f => norm(f.paciente) === nome); if (l.length) blocks.push(['Financeiro', 'financeiro', l.map(f => { const c = finCalc(f); return [f.id, `${f.planejamento || ''} · contratado ${fmtR(f.valor) || '—'} · débito ${fmtR(c.debito)}`]; })]); }
+  if (view !== 'financeiro') { const l = db.financeiro.filter(f => norm(f.paciente) === nome); if (l.length) blocks.push(['Financeiro', 'financeiro', l.map(f => { const c = finCalc(f); return [f.id, `${f.tipoTrabalho ? f.tipoTrabalho + ' · ' : ''}${f.planejamento || ''} · contratado ${fmtR(f.valor) || '—'} · débito ${fmtR(c.debito)}`]; })]); }
   const movs = db.movimentacoes.filter(m => norm(m.paciente) === nome); if (movs.length) blocks.push(['Materiais usados', 'movimentacoes', movs.map(m => [m.id, `${fmtD(m.data)} · ${m.tipo} ${m.qtd}x ${m.codigo}`])]);
   if (!blocks.length) return '';
   return `<div class="linked">${blocks.map(([t, v, items]) => `<h4>${t}</h4><ul>${items.map(([id, txt]) => `<li><a href="#" data-open="${v}:${id}">${esc(txt)}</a></li>`).join('')}</ul>`).join('')}</div>`;
 }
-// paciente novo: cria a linha dele em Tomografias e em Financeiro, se ainda não existir
+// tipo de trabalho → planejamento do Financeiro, quando é o mesmo (protocolo e coroa têm vários planejamentos: fica em branco)
+const planDoTrabalho = t => ({ 'IMPLANTE UNITARIO': 'IMPLANTE UNITARIO', 'FIXA SOB IMPLANTE': 'FIXA SOBRE IMPLANTE' })[t] || '';
+// paciente novo: cria a linha dele em Tomografias e em Financeiro, se ainda não existir (trabalho novo de paciente já cadastrado: nova linha no Financeiro)
 function espelhaPaciente(p) {
   const n = norm(p.nome), feitos = [];
   if (!db.tomografias.some(t => norm(t.paciente) === n)) {
@@ -908,8 +915,8 @@ function espelhaPaciente(p) {
   }
   // a recepção não enxerga o Financeiro: nesse caso o próprio servidor cria a linha (trigger paciente_pela_recepcao)
   if (!ehAdmin()) feitos.push('Financeiro');
-  else if (!db.financeiro.some(f => norm(f.paciente) === n)) {
-    db.financeiro.push({ id: uid('f'), paciente: p.nome, clinica: p.clinica || '', planejamento: '', data: p.dataCirurgia || '', valor: null, entrada: null, desconto: null, qImpl: p.qtd || 1, obs: '' });
+  else if (!db.financeiro.some(f => norm(f.paciente) === n) || (p.tipoTrabalho && db.pacientes.filter(x => norm(x.nome) === n).length > 1 && !db.financeiro.some(f => norm(f.paciente) === n && f.tipoTrabalho === p.tipoTrabalho && (f.regiao || '') === (p.regiao || '')))) {
+    db.financeiro.push({ id: uid('f'), paciente: p.nome, clinica: p.clinica || '', planejamento: planDoTrabalho(p.tipoTrabalho), tipoTrabalho: p.tipoTrabalho || '', regiao: p.regiao || '', data: p.dataCirurgia || '', valor: null, entrada: null, desconto: null, qImpl: p.qtd || 1, obs: '' });
     feitos.push('Financeiro');
   }
   return feitos.length ? 'Também incluído em ' + feitos.join(' e ') + '.' : '';
@@ -923,7 +930,7 @@ function openForm(view, id, preset) {
   if (!rec && view === 'estoque') base.codigo = nextCodigo(base.categoria);
   if (view === 'pacientes' && !base.dataReabertura) base.dataReabertura = addMonths(base.dataCirurgia, base.meses);
   const ov = document.createElement('div'); ov.className = 'overlay';
-  const extraBtns = rec && view === 'pacientes' ? `<button class="btn" id="mkTomo">+ Tomografia</button>${podeGravar('financeiro') ? '<button class="btn" id="mkFin">+ Financeiro</button>' : ''}` : '';
+  const extraBtns = rec && view === 'pacientes' ? `<button class="btn" id="mkTrab" title="Cadastrar outro trabalho para este paciente, separado deste">+ Novo trabalho</button><button class="btn" id="mkTomo">+ Tomografia</button>${podeGravar('financeiro') ? '<button class="btn" id="mkFin">+ Financeiro</button>' : ''}` : '';
   ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
     <header><h2>${rec ? 'Editar' : 'Novo'} ${S.singular}</h2><button class="btn ghost" data-close aria-label="Fechar">✕</button></header>
     <div class="body">${datalists()}<div class="form">${S.fields.filter(fd => !fd.admin || ehAdmin()).map(fd => fieldHtml(fd, base[fd.k], base)).join('')}${S.preview ? '<div class="calc" id="calcPrev"></div>' : ''}</div>${rec ? linkedHtml(view, rec) : ''}</div>
@@ -1012,8 +1019,9 @@ function openForm(view, id, preset) {
     };
     $('#dup').onclick = () => { const o = readForm(S); if (view === 'estoque') o.codigo = nextCodigo(o.categoria); close(true); openForm(view, null, o); };
     if (view === 'pacientes') {
+      $('#mkTrab').onclick = () => { close(true); openForm('pacientes', null, { nome: rec.nome, clinica: rec.clinica, telefone: rec.telefone }); };
       $('#mkTomo').onclick = () => { close(true); openForm('tomografias', null, { paciente: rec.nome, clinica: rec.clinica, telefone: rec.telefone }); };
-      if ($('#mkFin')) $('#mkFin').onclick = () => { close(true); openForm('financeiro', null, { paciente: rec.nome, clinica: rec.clinica, data: rec.dataCirurgia, qImpl: rec.qtd || 1 }); };
+      if ($('#mkFin')) $('#mkFin').onclick = () => { close(true); openForm('financeiro', null, { paciente: rec.nome, clinica: rec.clinica, data: rec.dataCirurgia, qImpl: rec.qtd || 1, tipoTrabalho: rec.tipoTrabalho || '', regiao: rec.regiao || '', planejamento: planDoTrabalho(rec.tipoTrabalho) }); };
     }
   }
 }
@@ -1280,7 +1288,7 @@ function exportCsv(view, rows) {
 }
 
 /* ============ configurações / backup ============ */
-const LISTAS_NOMES = { clinicas: 'Clínicas', statusPaciente: 'Status do paciente', statusTomo: 'Status da tomografia', statusSefaz: 'Status SEFAZ', tipoArquivo: 'Tipo de arquivo', tipoExame: 'Tipo de exame', guia: 'Guia cirúrgico', planejamento: 'Planejamento', laboratorio: 'Laboratório', formaPagamento: 'Forma de pagamento', tipoRecebimento: 'Tipo de recebimento', cor: 'Cor', categoriaEstoque: 'Categoria de estoque', tipoMovimento: 'Tipo de movimento', localEstoque: 'Local de estoque', simNao: 'Sim / Não' };
+const LISTAS_NOMES = { clinicas: 'Clínicas', statusPaciente: 'Status do paciente', statusTomo: 'Status da tomografia', statusSefaz: 'Status SEFAZ', tipoArquivo: 'Tipo de arquivo', tipoExame: 'Tipo de exame', guia: 'Guia cirúrgico', planejamento: 'Planejamento', tipoTrabalho: 'Tipo de trabalho', laboratorio: 'Laboratório', formaPagamento: 'Forma de pagamento', tipoRecebimento: 'Tipo de recebimento', cor: 'Cor', categoriaEstoque: 'Categoria de estoque', tipoMovimento: 'Tipo de movimento', localEstoque: 'Local de estoque', simNao: 'Sim / Não' };
 function renderConfig() {
   $('#main').innerHTML = headHtml('Backup e cadastros', 'Onde os dados ficam, cópias de segurança e listas dos menus') + `<div class="settings">
     <section class="card"><h3>Conta e sincronização</h3>
