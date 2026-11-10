@@ -1024,7 +1024,11 @@ function openForm(view, id, preset) {
     if (view === 'pacientes') {
       $('#mkTrab').onclick = () => { close(true); openForm('pacientes', null, { nome: rec.nome, clinica: rec.clinica, telefone: rec.telefone }); };
       $('#mkTomo').onclick = () => { close(true); openForm('tomografias', null, { paciente: rec.nome, clinica: rec.clinica, telefone: rec.telefone }); };
-      if ($('#mkFin')) $('#mkFin').onclick = () => { close(true); openForm('financeiro', null, { paciente: rec.nome, clinica: rec.clinica, data: rec.dataCirurgia, qImpl: rec.qtd || 1, tipoTrabalho: rec.tipoTrabalho || '', regiao: rec.regiao || '', planejamento: planDoTrabalho(rec.tipoTrabalho) }); };
+      if ($('#mkFin')) $('#mkFin').onclick = () => { close(true);
+        // o trabalho já tem lançamento (criado junto com o paciente): abre ele em vez de criar outro
+        const ja = db.financeiro.find(f => norm(f.paciente) === norm(rec.nome) && f.planejamento !== 'MANUTENCAO' && (f.tipoTrabalho || '') === (rec.tipoTrabalho || '') && (f.regiao || '') === (rec.regiao || ''));
+        if (ja) { openForm('financeiro', ja.id); toast('Este trabalho já tem lançamento no Financeiro — aberto para editar.'); return; }
+        openForm('financeiro', null, { paciente: rec.nome, clinica: rec.clinica, data: rec.dataCirurgia, qImpl: rec.qtd || 1, tipoTrabalho: rec.tipoTrabalho || '', regiao: rec.regiao || '', planejamento: planDoTrabalho(rec.tipoTrabalho) }); };
     }
   }
 }
